@@ -1,1 +1,363 @@
-sdad
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Monitoraggio Dati</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --background-color: #f5f7fa;
+            --light-gray: #ecf0f1;
+            --text-color: #333;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .status {
+            display: flex;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+        
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #2ecc71;
+            margin-right: 8px;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            grid-gap: 20px;
+        }
+        
+        .box {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+        }
+        
+        .box-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--light-gray);
+        }
+        
+        .box-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        
+        .box-controls select,
+        .box-controls input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .metrics {
+            grid-column: span 12;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-gap: 20px;
+        }
+        
+        .metric-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+        
+        .metric-title {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+        
+        .metric-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+        
+        .metric-change {
+            font-size: 0.8rem;
+            color: #2ecc71;
+            margin-top: 5px;
+        }
+        
+        .metric-change.negative {
+            color: var(--accent-color);
+        }
+        
+        .main-chart {
+            grid-column: span 8;
+        }
+        
+        .pie-chart {
+            grid-column: span 4;
+        }
+        
+        .data-table {
+            grid-column: span 12;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        thead {
+            background-color: var(--light-gray);
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        tbody tr:hover {
+            background-color: var(--light-gray);
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        
+        .pagination button {
+            background-color: white;
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            margin: 0 5px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        
+        .pagination button.active {
+            background-color: var(--secondary-color);
+            color: white;
+            border-color: var(--secondary-color);
+        }
+        
+        .filter-section {
+            grid-column: span 12;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .filter-group {
+            display: flex;
+            align-items: center;
+        }
+        
+        .filter-label {
+            font-size: 0.9rem;
+            margin-right: 8px;
+            font-weight: 600;
+        }
+        
+        .filter-select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-width: 150px;
+        }
+        
+        .date-range {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        .gomma-tag {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: white;
+        }
+
+        .gomma-hard {
+            background-color: #e74c3c;
+        }
+
+        .gomma-medium {
+            background-color: #f39c12;
+        }
+
+        .gomma-soft {
+            background-color: #2ecc71;
+        }
+        
+        #real-time-updates {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 100;
+            display: none;
+        }
+
+        @media (max-width: 992px) {
+            .main-chart, .pie-chart {
+                grid-column: span 12;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Dashboard Monitoraggio Dati</h1>
+            <div class="status">
+                <div class="status-indicator"></div>
+                <span>Dati aggiornati in tempo reale</span>
+            </div>
+        </header>
+        
+        <div class="dashboard">
+            <div class="filter-section box">
+                <div class="filter-group">
+                    <span class="filter-label">Giocatore:</span>
+                    <select id="player-filter" class="filter-select">
+                        <option value="all">Tutti i giocatori</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <span class="filter-label">Gomma:</span>
+                    <select id="tire-filter" class="filter-select">
+                        <option value="all">Tutte le gomme</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <span class="filter-label">Periodo:</span>
+                    <div class="date-range">
+                        <input type="date" id="start-date">
+                        <span>a</span>
+                        <input type="date" id="end-date">
+                    </div>
+                </div>
+                <button id="apply-filters">Applica Filtri</button>
+                <button id="reset-filters">Reimposta</button>
+            </div>
+            
+            <div class="metrics">
+                <div class="metric-card">
+                    <div class="metric-title">Media Box</div>
+                    <div class="metric-value" id="avg-box">0</div>
+                    <div class="metric-change">+0% dall'ultimo periodo</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Box Max</div>
+                    <div class="metric-value" id="max-box">0</div>
+                    <div class="metric-change">Giocatore: <span id="max-box-player">-</span></div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Box Min</div>
+                    <div class="metric-value" id="min-box">0</div>
+                    <div class="metric-change">Giocatore: <span id="min-box-player">-</span></div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Totale Record</div>
+                    <div class="metric-value" id="total-records">0</div>
+                    <div class="metric-change" id="records-change">+0% dall'ultimo periodo</div>
+                </div>
+            </div>
+            
+            <div class="box main-chart">
+                <div class="box-header">
+                    <div class="box-title">Andamento Box nel Tempo</div>
+                    <div class="box-controls">
+                        <select id="chart-time-range">
+                            <option value="day">Ultimo giorno</option>
+                            <option value="week" selected>Ultima settimana</option>
+                            <option value="month">Ultimo mese</option>
+                            <option value="year">Ultimo anno</option>
+                        </select>
+                    </div>
+                </div>
+                <canvas id="boxTrendChart"></canvas>
+            </div>
+            
+            <div class="box pie-chart">
+                <div class="box-header">
+                    <div class="box-title">Distribuzione Gomme</div>
+                    <div class="box-controls">
+                        <select id="pie-chart-view">
+                            <option value="count">Conteggio</option>
+                            <option value=
