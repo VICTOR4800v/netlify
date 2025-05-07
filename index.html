@@ -748,6 +748,80 @@
             updatePagination(totalPages);
         }
         
+        function applyFilters() {
+            const playerFilter = document.getElementById('player-filter').value;
+            const tireFilter = document.getElementById('tire-filter').value;
+            const startDate = new Date(document.getElementById('start-date').value);
+            const endDate = new Date(document.getElementById('end-date').value);
+            
+            // Aggiungi un giorno alla data di fine per includerla completamente
+            endDate.setDate(endDate.getDate() + 1);
+            
+            // Applica i filtri
+            filteredData = mockData.filter(item => {
+                const itemDate = new Date(item.timestamp);
+                const matchesPlayer = playerFilter === 'all' || item.car === playerFilter;
+                const matchesTire = tireFilter === 'all' || item.gomma === tireFilter;
+                const matchesDateRange = itemDate >= startDate && itemDate <= endDate;
+                
+                return matchesPlayer && matchesTire && matchesDateRange;
+            });
+            
+            // Reimposta la pagina corrente e aggiorna il dashboard
+            currentPage = 1;
+            updateDashboard();
+        }
+        
+        function resetFilters() {
+            // Reimposta i filtri ai valori predefiniti
+            document.getElementById('player-filter').value = 'all';
+            document.getElementById('tire-filter').value = 'all';
+            
+            // Reimposta le date
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            document.getElementById('start-date').valueAsDate = oneWeekAgo;
+            document.getElementById('end-date').valueAsDate = new Date();
+            
+            // Ripristina i dati non filtrati
+            filteredData = [...mockData];
+            currentPage = 1;
+            updateDashboard();
+        }
+        
+        function simulateNewData() {
+            // Simula l'arrivo di nuovi dati
+            const players = ['Rossi', 'Bianchi', 'Verdi', 'Neri'];
+            const tires = ['soft', 'medium', 'hard'];
+            
+            const newData = {
+                id: mockData.length + 1,
+                timestamp: new Date().toISOString(),
+                car: players[Math.floor(Math.random() * players.length)],
+                box: Math.floor(Math.random() * 15) + 80, // Valore tra 80 e 95
+                gomma: tires[Math.floor(Math.random() * tires.length)]
+            };
+            
+            mockData.push(newData);
+            
+            // Mostra notifica di nuovi dati
+            const updateNotification = document.getElementById('real-time-updates');
+            updateNotification.style.display = 'block';
+            
+            // Nascondi la notifica dopo 5 secondi
+            setTimeout(() => {
+                updateNotification.style.display = 'none';
+            }, 5000);
+        }
+        
+        function refreshData() {
+            // Applica gli stessi filtri ai nuovi dati
+            applyFilters();
+            
+            // Nascondi la notifica
+            document.getElementById('real-time-updates').style.display = 'none';
+        }
+        
         function updatePagination(totalPages) {
             const pagination = document.getElementById('pagination');
             pagination.innerHTML = '';
@@ -787,4 +861,12 @@
             }
             
             // Pulsante successivo
-            if (currentPage < totalPages
+            if (currentPage < totalPages) {
+                const nextButton = document.createElement('button');
+                nextButton.innerHTML = '&raquo;';
+                nextButton.addEventListener('click', () => {
+                    currentPage++;
+                    updateTable();
+                });
+                pagination.appendChild(nextButton);
+            }
