@@ -360,4 +360,431 @@
                     <div class="box-controls">
                         <select id="pie-chart-view">
                             <option value="count">Conteggio</option>
-                            <option value=
+                            <option value="avg">Media Box</option>
+                        </select>
+                    </div>
+                </div>
+                <canvas id="tirePieChart"></canvas>
+            </div>
+            
+            <div class="box data-table">
+                <div class="box-header">
+                    <div class="box-title">Dati Dettagliati</div>
+                    <div class="box-controls">
+                        <select id="sort-by">
+                            <option value="timestamp-desc">Data (Più recente)</option>
+                            <option value="timestamp-asc">Data (Più vecchia)</option>
+                            <option value="box-desc">Box (Alto-Basso)</option>
+                            <option value="box-asc">Box (Basso-Alto)</option>
+                        </select>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data/Ora</th>
+                            <th>Giocatore</th>
+                            <th>Box</th>
+                            <th>Gomma</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-table-body">
+                        <!-- I dati verranno inseriti qui dinamicamente -->
+                    </tbody>
+                </table>
+                <div class="pagination" id="pagination">
+                    <!-- I pulsanti di paginazione verranno inseriti qui dinamicamente -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="real-time-updates">
+        Nuovi dati ricevuti! <button id="refresh-data">Aggiorna</button>
+    </div>
+    
+    <script>
+        // Dati di esempio (in una applicazione reale verrebbero caricati da un database)
+        let mockData = [
+            { id: 1, timestamp: '2025-05-01T10:30:00', car: 'Rossi', box: 95, gomma: 'soft' },
+            { id: 2, timestamp: '2025-05-01T11:45:00', car: 'Bianchi', box: 87, gomma: 'medium' },
+            { id: 3, timestamp: '2025-05-02T09:15:00', car: 'Verdi', box: 92, gomma: 'hard' },
+            { id: 4, timestamp: '2025-05-02T14:20:00', car: 'Rossi', box: 88, gomma: 'medium' },
+            { id: 5, timestamp: '2025-05-03T16:10:00', car: 'Neri', box: 91, gomma: 'soft' },
+            { id: 6, timestamp: '2025-05-03T17:45:00', car: 'Bianchi', box: 85, gomma: 'hard' },
+            { id: 7, timestamp: '2025-05-04T08:30:00', car: 'Verdi', box: 89, gomma: 'medium' },
+            { id: 8, timestamp: '2025-05-04T13:15:00', car: 'Rossi', box: 94, gomma: 'soft' },
+            { id: 9, timestamp: '2025-05-05T11:00:00', car: 'Neri', box: 86, gomma: 'hard' },
+            { id: 10, timestamp: '2025-05-05T15:30:00', car: 'Bianchi', box: 90, gomma: 'medium' },
+            { id: 11, timestamp: '2025-05-06T09:45:00', car: 'Rossi', box: 93, gomma: 'soft' },
+            { id: 12, timestamp: '2025-05-06T14:00:00', car: 'Verdi', box: 87, gomma: 'medium' },
+            { id: 13, timestamp: '2025-05-07T10:15:00', car: 'Neri', box: 89, gomma: 'hard' },
+            { id: 14, timestamp: '2025-05-07T16:45:00', car: 'Bianchi', box: 92, gomma: 'soft' },
+        ];
+
+        // Variabili globali
+        let filteredData = [...mockData];
+        let currentPage = 1;
+        const itemsPerPage = 10;
+        let boxTrendChart, tirePieChart;
+        
+        // Inizializzazione della pagina
+        document.addEventListener('DOMContentLoaded', function() {
+            initFilters();
+            initDatePickers();
+            initCharts();
+            updateDashboard();
+            
+            // Aggiungi listener per i filtri
+            document.getElementById('apply-filters').addEventListener('click', applyFilters);
+            document.getElementById('reset-filters').addEventListener('click', resetFilters);
+            document.getElementById('chart-time-range').addEventListener('change', updateBoxTrendChart);
+            document.getElementById('pie-chart-view').addEventListener('change', updateTirePieChart);
+            document.getElementById('sort-by').addEventListener('change', updateTable);
+            document.getElementById('refresh-data').addEventListener('click', refreshData);
+            
+            // Simula l'arrivo di nuovi dati in tempo reale
+            setInterval(simulateNewData, 30000);
+        });
+        
+        function initFilters() {
+            const playerFilter = document.getElementById('player-filter');
+            const tireFilter = document.getElementById('tire-filter');
+            
+            // Ottieni tutti i giocatori unici
+            const uniquePlayers = [...new Set(mockData.map(item => item.car))];
+            uniquePlayers.forEach(player => {
+                const option = document.createElement('option');
+                option.value = player;
+                option.textContent = player;
+                playerFilter.appendChild(option);
+            });
+            
+            // Ottieni tutti i tipi di gomme unici
+            const uniqueTires = [...new Set(mockData.map(item => item.gomma))];
+            uniqueTires.forEach(tire => {
+                const option = document.createElement('option');
+                option.value = tire;
+                option.textContent = tire.charAt(0).toUpperCase() + tire.slice(1);
+                tireFilter.appendChild(option);
+            });
+        }
+        
+        function initDatePickers() {
+            const startDate = document.getElementById('start-date');
+            const endDate = document.getElementById('end-date');
+            
+            // Imposta la data di inizio a una settimana fa
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            startDate.valueAsDate = oneWeekAgo;
+            
+            // Imposta la data di fine a oggi
+            endDate.valueAsDate = new Date();
+        }
+        
+        function initCharts() {
+            // Inizializza il grafico dell'andamento del box
+            const boxTrendCtx = document.getElementById('boxTrendChart').getContext('2d');
+            boxTrendChart = new Chart(boxTrendCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                tooltipFormat: 'DD MMM YYYY HH:mm'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Data'
+                            }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Box'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Inizializza il grafico a torta delle gomme
+            const tirePieCtx = document.getElementById('tirePieChart').getContext('2d');
+            tirePieChart = new Chart(tirePieCtx, {
+                type: 'pie',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: [
+                            '#e74c3c',
+                            '#f39c12',
+                            '#2ecc71',
+                            '#3498db',
+                            '#9b59b6'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateDashboard() {
+            updateMetrics();
+            updateBoxTrendChart();
+            updateTirePieChart();
+            updateTable();
+        }
+        
+        function updateMetrics() {
+            // Calcola le metriche
+            const boxValues = filteredData.map(item => item.box);
+            const avgBox = boxValues.length ? (boxValues.reduce((a, b) => a + b, 0) / boxValues.length).toFixed(1) : 0;
+            
+            let maxBox = 0;
+            let maxBoxPlayer = '-';
+            let minBox = Infinity;
+            let minBoxPlayer = '-';
+            
+            if (boxValues.length) {
+                maxBox = Math.max(...boxValues);
+                minBox = Math.min(...boxValues);
+                
+                const maxBoxItem = filteredData.find(item => item.box === maxBox);
+                const minBoxItem = filteredData.find(item => item.box === minBox);
+                
+                maxBoxPlayer = maxBoxItem ? maxBoxItem.car : '-';
+                minBoxPlayer = minBoxItem ? minBoxItem.car : '-';
+            } else {
+                minBox = 0;
+            }
+            
+            // Aggiorna i valori nel DOM
+            document.getElementById('avg-box').textContent = avgBox;
+            document.getElementById('max-box').textContent = maxBox;
+            document.getElementById('max-box-player').textContent = maxBoxPlayer;
+            document.getElementById('min-box').textContent = minBox;
+            document.getElementById('min-box-player').textContent = minBoxPlayer;
+            document.getElementById('total-records').textContent = filteredData.length;
+        }
+        
+        function updateBoxTrendChart() {
+            const timeRange = document.getElementById('chart-time-range').value;
+            
+            // Filtra i dati in base all'intervallo di tempo
+            let chartData = [...filteredData];
+            const now = new Date();
+            
+            if (timeRange === 'day') {
+                const yesterday = new Date(now);
+                yesterday.setDate(yesterday.getDate() - 1);
+                chartData = chartData.filter(item => new Date(item.timestamp) >= yesterday);
+            } else if (timeRange === 'week') {
+                const lastWeek = new Date(now);
+                lastWeek.setDate(lastWeek.getDate() - 7);
+                chartData = chartData.filter(item => new Date(item.timestamp) >= lastWeek);
+            } else if (timeRange === 'month') {
+                const lastMonth = new Date(now);
+                lastMonth.setMonth(lastMonth.getMonth() - 1);
+                chartData = chartData.filter(item => new Date(item.timestamp) >= lastMonth);
+            } else if (timeRange === 'year') {
+                const lastYear = new Date(now);
+                lastYear.setFullYear(lastYear.getFullYear() - 1);
+                chartData = chartData.filter(item => new Date(item.timestamp) >= lastYear);
+            }
+            
+            // Raggruppa i dati per giocatore
+            const playerGroups = _.groupBy(chartData, 'car');
+            const datasets = [];
+            
+            // Crea un dataset per ogni giocatore
+            const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+            let colorIndex = 0;
+            
+            for (const player in playerGroups) {
+                // Ordina i dati per timestamp
+                const playerData = playerGroups[player].sort((a, b) => 
+                    new Date(a.timestamp) - new Date(b.timestamp));
+                
+                datasets.push({
+                    label: player,
+                    data: playerData.map(item => ({
+                        x: new Date(item.timestamp),
+                        y: item.box
+                    })),
+                    borderColor: colors[colorIndex % colors.length],
+                    backgroundColor: colors[colorIndex % colors.length] + '20',
+                    tension: 0.4,
+                    fill: false
+                });
+                
+                colorIndex++;
+            }
+            
+            // Aggiorna il grafico
+            boxTrendChart.data.datasets = datasets;
+            boxTrendChart.options.scales.x.time.unit = timeRange === 'day' ? 'hour' : 'day';
+            boxTrendChart.update();
+        }
+        
+        function updateTirePieChart() {
+            const viewType = document.getElementById('pie-chart-view').value;
+            
+            // Raggruppa i dati per tipo di gomma
+            const tireGroups = _.groupBy(filteredData, 'gomma');
+            const labels = Object.keys(tireGroups).map(key => key.charAt(0).toUpperCase() + key.slice(1));
+            const backgroundColors = {
+                'hard': '#e74c3c',
+                'medium': '#f39c12',
+                'soft': '#2ecc71'
+            };
+            
+            let data;
+            
+            if (viewType === 'count') {
+                // Conteggio delle gomme
+                data = Object.values(tireGroups).map(group => group.length);
+            } else {
+                // Media box per tipo di gomma
+                data = Object.values(tireGroups).map(group => {
+                    const sum = group.reduce((acc, item) => acc + item.box, 0);
+                    return (sum / group.length).toFixed(1);
+                });
+            }
+            
+            // Aggiorna il grafico
+            tirePieChart.data.labels = labels;
+            tirePieChart.data.datasets[0].data = data;
+            tirePieChart.data.datasets[0].backgroundColor = labels.map(label => 
+                backgroundColors[label.toLowerCase()] || '#3498db');
+            tirePieChart.update();
+        }
+        
+        function updateTable() {
+            const sortBy = document.getElementById('sort-by').value;
+            const tableBody = document.getElementById('data-table-body');
+            
+            // Ordina i dati
+            let sortedData = [...filteredData];
+            
+            if (sortBy === 'timestamp-desc') {
+                sortedData.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            } else if (sortBy === 'timestamp-asc') {
+                sortedData.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            } else if (sortBy === 'box-desc') {
+                sortedData.sort((a, b) => b.box - a.box);
+            } else if (sortBy === 'box-asc') {
+                sortedData.sort((a, b) => a.box - b.box);
+            }
+            
+            // Calcola la paginazione
+            const totalPages = Math.ceil(sortedData.length / itemsPerPage);
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const currentPageData = sortedData.slice(startIndex, endIndex);
+            
+            // Svuota la tabella
+            tableBody.innerHTML = '';
+            
+            // Popola la tabella con i dati
+            currentPageData.forEach(item => {
+                const row = document.createElement('tr');
+                
+                // Formatta la data
+                const date = new Date(item.timestamp);
+                const formattedDate = date.toLocaleDateString('it-IT') + ' ' + date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+                
+                // Classe CSS per il tipo di gomma
+                const gommaClass = `gomma-tag gomma-${item.gomma.toLowerCase()}`;
+                
+                row.innerHTML = `
+                    <td>${formattedDate}</td>
+                    <td>${item.car}</td>
+                    <td>${item.box}</td>
+                    <td><span class="${gommaClass}">${item.gomma}</span></td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            // Aggiorna la paginazione
+            updatePagination(totalPages);
+        }
+        
+        function updatePagination(totalPages) {
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+            
+            if (totalPages <= 1) return;
+            
+            // Crea i pulsanti di navigazione
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+            
+            if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+            
+            // Pulsante precedente
+            if (currentPage > 1) {
+                const prevButton = document.createElement('button');
+                prevButton.innerHTML = '&laquo;';
+                prevButton.addEventListener('click', () => {
+                    currentPage--;
+                    updateTable();
+                });
+                pagination.appendChild(prevButton);
+            }
+            
+            // Pagine numerate
+            for (let i = startPage; i <= endPage; i++) {
+                const pageButton = document.createElement('button');
+                pageButton.textContent = i;
+                pageButton.classList.toggle('active', i === currentPage);
+                pageButton.addEventListener('click', () => {
+                    currentPage = i;
+                    updateTable();
+                });
+                pagination.appendChild(pageButton);
+            }
+            
+            // Pulsante successivo
+            if (currentPage < totalPages
